@@ -1,0 +1,174 @@
+name: Deploy Publish Image
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Display tag information
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Git ref:     ${{ github.ref }}"
+          echo "Tag:         ${{ github.ref_name }}"
+
+      # ----------------------------------------
+      # Checkout source at the exact tag
+      # ----------------------------------------
+      - name: Checkout tagged source code
+        uses: actions/checkout@v4
+
+      # ----------------------------------------
+      # Setup Java
+      # ----------------------------------------
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # ----------------------------------------
+      # Build Spring Boot JAR
+      # ----------------------------------------
+      - name: Build application
+        run: |
+          mvn clean package -DskipTests
+
+      # ----------------------------------------
+      # Verify JAR
+      # ----------------------------------------
+      - name: Verify generated JAR
+        shell: bash
+        run: |
+          echo "Generated files:"
+          find target -maxdepth 2 -type f -print
+
+          JAR_FILE=$(find target \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "original-*.jar" \
+            ! -name "*-sources.jar" \
+            ! -name "*-javadoc.jar" \
+            | head -n 1)
+
+          if [ -z "$JAR_FILE" ]; then
+            echo "No deployable JAR file was found"
+            exit 1
+          fi
+
+          echo "JAR file found: $JAR_FILE"
+
+      # ----------------------------------------
+      # Login to GHCR
+      # ----------------------------------------
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------------------
+      # Generate image metadata
+      # ----------------------------------------
+      - name: Generate Docker image metadata
+        id: metadata
+        shell: bash
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" \
+            | tr '[:upper:]' '[:lower:]')
+
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "owner_lower=$OWNER_LOWER" >> "$GITHUB_OUTPUT"
+
+          echo "Docker tag: $TAG_NAME"
+          echo "GHCR owner: $OWNER_LOWER"
+
+      # ----------------------------------------
+      # Build Docker image
+      # ----------------------------------------
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}" \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:latest" \
+            .
+
+      # ----------------------------------------
+      # Push version tag
+      # ----------------------------------------
+      - name: Push version image
+        run: |
+          docker push \
+            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+
+      # ----------------------------------------
+      # Push latest tag
+      # ----------------------------------------
+      - name: Push latest image
+        run: |
+          docker push \
+            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:latest"
+
+      # ----------------------------------------
+      # Checkout deployment repository
+      # ----------------------------------------
+      - name: Checkout Deployment Repo
+        uses: actions/checkout@v4
+        with:
+          repository: JitenPalaparthi/bmw-java-demo-k8s-deployment
+          token: ${{ secrets.DEPLOYMENT_TOKEN }}
+          path: deployment-repo
+
+      # ----------------------------------------
+      # Update Kubernetes deployment image
+      # ----------------------------------------
+      - name: Update image tag in Kubernetes deployment
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+
+          echo "Updating image to:"
+          echo "$IMAGE"
+
+          sed -i \
+            "s|image: .*bmw-java-demo-k8s:.*|image: $IMAGE|" \
+            deployment-repo/k8s/05-java-deployment.yaml
+
+          echo "Updated deployment:"
+          grep -n "image:" deployment-repo/k8s/05-java-deployment.yaml
+
+      # ----------------------------------------
+      # Commit and push deployment change
+      # ----------------------------------------
+      - name: Commit and push deployment change
+        working-directory: deployment-repo
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add k8s/05-java-deployment.yaml
+
+          if git diff --cached --quiet; then
+            echo "No deployment changes detected"
+            exit 0
+          fi
+
+          git commit \
+            -m "Deploy bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+
+          git push
