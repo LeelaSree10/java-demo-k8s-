@@ -113,7 +113,7 @@ jobs:
       - name: Push version image
         run: |
           docker push \
-            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
+            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
 
       # ----------------------------------------
       # Push latest tag
@@ -121,7 +121,7 @@ jobs:
       - name: Push latest image
         run: |
           docker push \
-            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:latest"
+            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s:latest"
 
       # ----------------------------------------
       # Checkout deployment repository
@@ -139,7 +139,7 @@ jobs:
       - name: Update image tag in Kubernetes deployment
         shell: bash
         run: |
-          IMAGE="ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
+          IMAGE="ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
 
           echo "Updating image to:"
           echo "$IMAGE"
@@ -169,6 +169,6 @@ jobs:
           fi
 
           git commit \
-            -m "Deploy java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
+            -m "Deploy java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
 
           git push
