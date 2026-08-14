@@ -103,8 +103,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}" \
-            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:latest" \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s:${{ steps.metadata.outputs.tag_name }}" \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s:latest" \
             .
 
       # ----------------------------------------
