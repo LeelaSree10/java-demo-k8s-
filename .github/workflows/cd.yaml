@@ -103,8 +103,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}" \
-            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:latest" \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}" \
+            --tag "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:latest" \
             .
 
       # ----------------------------------------
@@ -113,7 +113,7 @@ jobs:
       - name: Push version image
         run: |
           docker push \
-            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+            "ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
 
       # ----------------------------------------
       # Push latest tag
@@ -129,7 +129,7 @@ jobs:
       - name: Checkout Deployment Repo
         uses: actions/checkout@v4
         with:
-          repository: LeelaSree10/bmw-java-demo-k8s-deployment
+          repository: LeelaSree10/java-demo-k8s-deployment
           token: ${{ secrets.DEPLOYMENT_TOKEN }}
           path: deployment-repo
 
@@ -139,13 +139,13 @@ jobs:
       - name: Update image tag in Kubernetes deployment
         shell: bash
         run: |
-          IMAGE="ghcr.io/${{ steps.metadata.outputs.owner_lower }}/bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+          IMAGE="ghcr.io/${{ steps.metadata.outputs.owner_lower }}/java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
 
           echo "Updating image to:"
           echo "$IMAGE"
 
           sed -i \
-            "s|image: .*bmw-java-demo-k8s:.*|image: $IMAGE|" \
+            "s|image: .*java-demo-k8s-:.*|image: $IMAGE|" \
             deployment-repo/k8s/05-java-deployment.yaml
 
           echo "Updated deployment:"
@@ -169,6 +169,6 @@ jobs:
           fi
 
           git commit \
-            -m "Deploy bmw-java-demo-k8s:${{ steps.metadata.outputs.tag_name }}"
+            -m "Deploy java-demo-k8s-:${{ steps.metadata.outputs.tag_name }}"
 
           git push
